@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 5050;
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://alquest-b253e.firebaseapp.com/", 'https://alquest-b253e.web.app/'],
+    origin: ["http://localhost:5173", "https://alquest-b253e.firebaseapp.com", 'https://alquest-b253e.web.app'],
     credentials: true,
   })
 );

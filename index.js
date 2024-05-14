@@ -13,7 +13,11 @@ const PORT = process.env.PORT || 5050;
 
 app.use(
   cors({
-    origin: ["https://alquest-b253e.firebaseapp.com", 'https://alquest-b253e.web.app'],
+    origin: [
+      "https://alquest-b253e.web.app",
+      "https://alquest-b253e.firebaseapp.com",
+      "http://localhost:5173",
+    ],
     credentials: true,
   })
 );
@@ -28,34 +32,6 @@ const client = new MongoClient(process.env.MONGO, {
   },
 });
 
-app.post("/jwt", async (req, res) => {
-  const user = req.body;
-
-  //   console.log(req.body);
-  // TODO: Authenticate user credentials
-
-  // Generate JWT token
-  const token = jwt.sign(user, process.env.JWT_SECRET, {
-    expiresIn: "30d",
-  });
-  res.cookie("userToken", token, { maxAge: 3600000, httpOnly: true });
-  //   console.log(token);
-  res.json({ token });
-});
-
-const verifyToken = (req, res, next) => {
-  const token = req.cookies.userToken;
-
-  if (!token) {
-    return res.status(401).json("You need to Login");
-  }
-
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-  req.token = decoded;
-
-  next();
-};
 
 async function run() {
   try {
@@ -64,6 +40,31 @@ async function run() {
     const recommendationsCollection = database.collection("Recommendation");
     const queryCollection = database.collection("Query");
     console.log("Database connected");
+
+    // services api
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+
+      const token = jwt.sign(user, process.env.JWT_SECRET, {
+        expiresIn: "30d",
+      });
+      res.cookie("userToken", token, {
+        secure: true,
+        httpOnly: true,
+        sameSite: "none",
+      });
+      //   console.log(token);
+      res.json({ token });
+    });
+
+    const verifyToken = (req, res, next) => {
+      const authHeader = req.cookies.userToken;
+      // console.log(authHeader);
+      const decoded = jwt.verify(authHeader, process.env.JWT_SECRET);
+      console.log(decoded);
+      req.token = decoded;
+      next();
+    };
 
     // adding recommendation routes
     app.post("/recommendation/add", async (req, res) => {
@@ -87,7 +88,6 @@ async function run() {
         .sort({ _id: -1 })
         .toArray();
       res.send(result);
-      
     });
 
     app.get("/recommendation/foruser", verifyToken, async (req, res) => {
@@ -98,7 +98,6 @@ async function run() {
         .sort({ _id: -1 })
         .toArray();
       res.send(result);
-      
     });
 
     app.get("/recommendation/all/:queryId", async (req, res) => {
@@ -110,7 +109,6 @@ async function run() {
       try {
         const result = await cursor.toArray();
         res.json(result);
-        
       } catch (error) {
         console.log(error);
         res.status(500).json({ message: "Internal server error" });
@@ -151,6 +149,7 @@ async function run() {
     app.post("/query/add", verifyToken, async (req, res) => {
       const user = req.token;
       const query = req.body;
+      console.log(query);
       const { iat, exp, ...modifiedUser } = user;
       const newQuery = {
         ...query,
@@ -160,6 +159,7 @@ async function run() {
       };
       try {
         const result = await queryCollection.insertOne(newQuery);
+        res.json(result);
       } catch (error) {
         console.log(error);
       }
@@ -218,6 +218,12 @@ async function run() {
         $set: req.body,
       });
       res.send("Updated Successfully");
+    });
+
+
+    app.post("/logout", (req, res) => {
+      res.clearCookie("userToken");
+      res.send("Logged out successfully");
     });
   } catch (error) {}
 }
